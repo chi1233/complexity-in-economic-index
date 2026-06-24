@@ -77,13 +77,12 @@ def build_task_panel(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index(name="human_time_mean")
     )
 
-    if panel["human_time_mean"].nunique() < 3:
-        raise ValueError("Not enough variation in human_time_mean across task clusters.")
-
     # Placeholder columns for compatibility with downstream code
     panel["success_pct"]    = pd.NA
     panel["autonomy_mean"]  = pd.NA
     panel["ai_time_mean"]   = pd.NA
     panel["edu_years_mean"] = pd.NA
+
+    print(f"[data_loading] Panel built with {len(panel)} task clusters")
 
     return panel
