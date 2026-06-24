@@ -52,68 +52,38 @@ def load_raw(data_dir: str = "data") -> pd.DataFrame:
 
 
 def build_task_panel(df: pd.DataFrame) -> pd.DataFrame:
-    """Pivot AEI long-format data into a cluster-level panel.
+    """Construct a task-cluster-level panel from the long-format AEI data.
 
-    Each row = one O*NET task cluster (cluster_name), with columns:
-        - human_time_mean
-        - success_pct
-        - autonomy_mean
-        - ai_time_mean
-        - edu_years_mean
+    For release_2026_03_24, cluster-level human time is given by rows with:
+        facet    == 'onet_task::human_only_time'
+        variable == 'onet_task_human_only_time_mean'
+        geo_id   == 'GLOBAL'
 
-    This function is tailored to the release_2026_03_24 schema, which uses
-    facet / variable / value with global aggregates marked by geo_id == 'GLOBAL'.
+    Each unique `cluster_name` is effectively a task description; we treat
+    these as our task clusters.
     """
 
-    def _extract(facet_kw: str, var_kw: str, col: str) -> pd.DataFrame:
-        # Filter by facet + variable substring
-        mask = (
-            df["facet"].str.contains(facet_kw, na=False)
-            & df["variable"].str.contains(var_kw, na=False)
-        )
-        sub = df[mask].copy()
-
-        # Prefer global aggregate if geo_id present
-        if "geo_id" in sub.columns:
-            global_codes = ["GLOBAL", "OWID_WRL", "WLD", "WORLD"]
-            sub_global = sub[sub["geo_id"].isin(global_codes)]
-            if len(sub_global) > 0:
-                sub = sub_global
-
-        # Drop rows without a task cluster_name (these are pure global stats)
-        if "cluster_name" in sub.columns:
-            sub = sub.dropna(subset=["cluster_name"])
-
-        return (
-            sub[["cluster_name", "value"]]
-            .drop_duplicates("cluster_name")
-            .rename(columns={"value": col})
-        )
-
-    # Cluster-level human-only time (hours)
-    time_mean = _extract("onet_task::human_only_time", "mean", "human_time_mean")
-
-    # Task success rate (%)
-    success = _extract("onet_task::task_success", "pct", "success_pct")
-
-    # AI autonomy (1–5)
-    autonomy = _extract("onet_task::ai_autonomy", "mean", "autonomy_mean")
-
-    # Human-with-AI time (minutes)
-    ai_time = _extract("onet_task::human_with_ai_time", "mean", "ai_time_mean")
-
-    # Human education years
-    edu = _extract("onet_task::human_education", "mean", "edu_years_mean")
+    # Filter to global onet_task human-only time means
+    mask = (
+        (df["facet"] == "onet_task::human_only_time")
+        & (df["variable"] == "onet_task_human_only_time_mean")
+        & (df["geo_id"] == "GLOBAL")
+    )
+    sub = df[mask].copy()
 
     panel = (
-        time_mean
-        .merge(success, on="cluster_name", how="inner")
-        .merge(autonomy, on="cluster_name", how="left")
-        .merge(ai_time, on="cluster_name", how="left")
-        .merge(edu, on="cluster_name", how="left")
+        sub.groupby("cluster_name", dropna=True)["value"]
+        .mean()
+        .reset_index(name="human_time_mean")
     )
 
     if panel["human_time_mean"].nunique() < 3:
         raise ValueError("Not enough variation in human_time_mean across task clusters.")
+
+    # Placeholder columns for compatibility with downstream code
+    panel["success_pct"]    = pd.NA
+    panel["autonomy_mean"]  = pd.NA
+    panel["ai_time_mean"]   = pd.NA
+    panel["edu_years_mean"] = pd.NA
 
     return panel
