@@ -5,7 +5,6 @@ Feature engineering: complexity bins, time-savings ratio, composite score.
 """
 import numpy as np
 import pandas as pd
-from scipy import stats
 
 BIN_LABELS = ["low", "medium", "high"]
 
@@ -84,38 +83,29 @@ def compute_time_savings(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _safe_z(col: pd.Series) -> pd.Series | None:
+    """Simple z-score implementation that avoids SciPy edge cases."""
+    col = col.astype(float).dropna()
+    if len(col) < 2:
+        return None
+    std = col.std(ddof=0)
+    if std == 0 or np.isnan(std):
+        return None
+    mean = col.mean()
+    return (col - mean) / std
+
+
 def build_complexity_score(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Composite z-score: 0.5*human_time + 0.3*edu_years + 0.2*autonomy.
-    Uses available columns; gracefully skips missing ones.
+    """Compute a simple complexity_score based on human_time_mean only.
+
+    This avoids SciPy's zscore pitfalls when columns are all-NaN or non-numeric.
     """
     df = df.copy()
-    z_cols: list[tuple[str, float]] = []
+    df["complexity_score"] = np.nan
+    if "human_time_mean" not in df.columns:
+        return df
 
-    if "human_time_mean" in df.columns:
-        df["z_human_time"] = stats.zscore(
-            df["human_time_mean"].fillna(df["human_time_mean"].median())
-        )
-        z_cols.append(("z_human_time", 0.5))
-
-    if "edu_years_mean" in df.columns:
-        df["z_edu"] = stats.zscore(
-            df["edu_years_mean"].fillna(df["edu_years_mean"].median())
-        )
-        z_cols.append(("z_edu", 0.3))
-
-    if "autonomy_mean" in df.columns:
-        df["z_autonomy"] = stats.zscore(
-            df["autonomy_mean"].fillna(df["autonomy_mean"].median())
-        )
-        z_cols.append(("z_autonomy", 0.2))
-
-    if z_cols:
-        total_w = sum(w for _, w in z_cols)
-        df["complexity_score"] = sum(
-            df[col] * (w / total_w) for col, w in z_cols
-        )
-    else:
-        df["complexity_score"] = np.nan
-
+    z = _safe_z(df["human_time_mean"])
+    if z is not None:
+        df.loc[z.index, "complexity_score"] = z
     return df
