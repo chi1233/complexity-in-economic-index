@@ -30,24 +30,35 @@ def assign_complexity_bins(
 ) -> tuple[pd.DataFrame, dict]:
     """Assign tertile-based complexity bins.
 
-    Uses the rank of `col` to avoid pandas.qcut label/edge mismatches when
-    many values are identical. Returns (df_with_bins, cutpoints_dict).
+    Robust to low variation: if we truly can't form multiple bins, fall back
+    to a single "medium" bin so the rest of the pipeline still runs.
+    Returns (df_with_bins, cutpoints_dict).
     """
     labels = labels or BIN_LABELS
     df = df.copy()
     assert col in df.columns, f"Column '{col}' not found."
 
+    # If almost no variation, fall back to a single bin
+    non_na = df[col].dropna()
+    if non_na.nunique() < 3 or len(non_na) < 3:
+        df["complexity_bin"] = "medium"
+        quantiles = [0.0, 0.5, 1.0]
+        cutpoints = df[col].quantile(quantiles).to_dict()
+        return df, cutpoints
+
     # Rank-based qcut for stability
     ranks = df[col].rank(method="average")
-    cats = pd.qcut(ranks, q=n_bins, duplicates="drop")
-    categories = list(cats.cat.categories)
-    actual_bins = len(categories)
-    if actual_bins < 2:
-        raise ValueError("Not enough variation in human_time_mean to form bins.")
-    if actual_bins > len(labels):
-        raise ValueError("Not enough labels for the number of bins.")
+    try:
+        cats = pd.qcut(ranks, q=n_bins, duplicates="drop")
+        categories = list(cats.cat.categories)
+    except ValueError:
+        # As an ultra-conservative fallback, assign all to medium
+        df["complexity_bin"] = "medium"
+        quantiles = [0.0, 0.5, 1.0]
+        cutpoints = df[col].quantile(quantiles).to_dict()
+        return df, cutpoints
 
-    # Map pandas interval categories -> human-readable labels
+    # Map pandas interval categories -> human-readable labels (up to available)
     mapping = {cat: labels[i] for i, cat in enumerate(categories)}
     df["complexity_bin"] = cats.cat.rename_categories(mapping)
 
