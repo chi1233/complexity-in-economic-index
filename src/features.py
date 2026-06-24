@@ -28,16 +28,30 @@ def assign_complexity_bins(
     n_bins: int = 3,
     labels: list | None = None,
 ) -> tuple[pd.DataFrame, dict]:
-    """
-    Assign tertile-based complexity bins within a (pre-filtered) dataframe.
-    Returns (df_with_bins, cutpoints_dict).
+    """Assign tertile-based complexity bins.
+
+    Uses the rank of `col` to avoid pandas.qcut label/edge mismatches when
+    many values are identical. Returns (df_with_bins, cutpoints_dict).
     """
     labels = labels or BIN_LABELS
     df = df.copy()
     assert col in df.columns, f"Column '{col}' not found."
-    df["complexity_bin"] = pd.qcut(
-        df[col], q=n_bins, labels=labels, duplicates="drop"
-    )
+
+    # Rank-based qcut for stability
+    ranks = df[col].rank(method="average")
+    cats = pd.qcut(ranks, q=n_bins, duplicates="drop")
+    categories = list(cats.cat.categories)
+    actual_bins = len(categories)
+    if actual_bins < 2:
+        raise ValueError("Not enough variation in human_time_mean to form bins.")
+    if actual_bins > len(labels):
+        raise ValueError("Not enough labels for the number of bins.")
+
+    # Map pandas interval categories -> human-readable labels
+    mapping = {cat: labels[i] for i, cat in enumerate(categories)}
+    df["complexity_bin"] = cats.cat.rename_categories(mapping)
+
+    # Still compute nominal cutpoints for reporting (based on original values)
     quantiles = [i / n_bins for i in range(n_bins + 1)]
     cutpoints = df[col].quantile(quantiles).to_dict()
     return df, cutpoints
