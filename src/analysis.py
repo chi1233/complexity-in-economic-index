@@ -5,13 +5,12 @@ Core analytical functions: bin summaries, productivity revision.
 """
 import numpy as np
 import pandas as pd
-from typing import dict as Dict
 
 
 def summarize_by_bin(
     df: pd.DataFrame,
     group_col: str = "complexity_bin",
-    metrics: list = None,
+    metrics: list | None = None,
 ) -> pd.DataFrame:
     """
     For each complexity bin compute mean, 95% CI, and N for each metric.
@@ -32,17 +31,20 @@ def summarize_by_bin(
             mean = vals.mean()
             se = vals.std() / np.sqrt(n)
             records.append({
-                "bin":   bin_val,
+                "bin":    bin_val,
                 "metric": metric,
-                "mean":  mean,
-                "ci_lo": mean - 1.96 * se,
-                "ci_hi": mean + 1.96 * se,
-                "n":     n,
+                "mean":   mean,
+                "ci_lo":  mean - 1.96 * se,
+                "ci_hi":  mean + 1.96 * se,
+                "n":      n,
             })
     return pd.DataFrame(records)
 
 
-def compute_productivity_revision(df: pd.DataFrame, group_col: str = "complexity_bin") -> dict:
+def compute_productivity_revision(
+    df: pd.DataFrame,
+    group_col: str = "complexity_bin",
+) -> dict:
     """
     Compare naive aggregate productivity uplift vs complexity-weighted version.
 
@@ -57,7 +59,11 @@ def compute_productivity_revision(df: pd.DataFrame, group_col: str = "complexity
 
     bins = (
         df.groupby(group_col, observed=True)
-        .agg(w=(group_col, "count"), s=("success_pct", "mean"), delta=("time_savings_ratio", "mean"))
+        .agg(
+            w=(group_col, "count"),
+            s=("success_pct", "mean"),
+            delta=("time_savings_ratio", "mean"),
+        )
     )
     bins["w"] = bins["w"] / bins["w"].sum()
 
@@ -87,21 +93,36 @@ def run_full_summary(panel: pd.DataFrame) -> None:
     ).round(3)
     print(summary)
 
-    cuts = panel.groupby("complexity_bin", observed=True)["human_time_mean"].agg(["min", "max"]).round(2)
+    cuts = (
+        panel.groupby("complexity_bin", observed=True)["human_time_mean"]
+        .agg(["min", "max"])
+        .round(2)
+    )
     print("\n=== Bin Cutpoints (hours) ===")
     print(cuts)
 
     print("\n=== Productivity Revision ===")
-    from src.features import filter_primitive, SOFTWARE_KW, WRITING_KW
-    sw = filter_primitive(panel, SOFTWARE_KW) if any(
-        panel["cluster_name"].str.lower().str.contains("|".join(SOFTWARE_KW), na=False)) else pd.DataFrame()
-    wr = filter_primitive(panel, WRITING_KW) if any(
-        panel["cluster_name"].str.lower().str.contains("|".join(WRITING_KW), na=False)) else pd.DataFrame()
+    from src.features import filter_primitive, SOFTWARE_KW, WRITING_KW  # noqa: PLC0415
+    sw = (
+        filter_primitive(panel, SOFTWARE_KW)
+        if panel["cluster_name"].str.lower().str.contains("|".join(SOFTWARE_KW), na=False).any()
+        else pd.DataFrame()
+    )
+    wr = (
+        filter_primitive(panel, WRITING_KW)
+        if panel["cluster_name"].str.lower().str.contains("|".join(WRITING_KW), na=False).any()
+        else pd.DataFrame()
+    )
 
-    for label, df in [("All tasks", panel), ("Software Dev", sw), ("Writing", wr)]:
-        if len(df) < 10:
+    for label, df_sub in [("All tasks", panel), ("Software Dev", sw), ("Writing", wr)]:
+        if len(df_sub) < 10:
             print(f"{label}: insufficient data")
             continue
-        r = compute_productivity_revision(df)
-        print(f"{label}: N={len(df):,}  G_naive={r['G_naive']:.4f}  "
-              f"G_weighted={r['G_weighted']:.4f}  bias={r['bias_pct']:.2f}%")
+        r = compute_productivity_revision(df_sub)
+        if "error" in r:
+            print(f"{label}: {r['error']}")
+            continue
+        print(
+            f"{label}: N={len(df_sub):,}  G_naive={r['G_naive']:.4f}  "
+            f"G_weighted={r['G_weighted']:.4f}  bias={r['bias_pct']:.2f}%"
+        )

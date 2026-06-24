@@ -6,7 +6,6 @@ Feature engineering: complexity bins, time-savings ratio, composite score.
 import numpy as np
 import pandas as pd
 from scipy import stats
-from typing import Tuple
 
 BIN_LABELS = ["low", "medium", "high"]
 
@@ -27,8 +26,8 @@ def assign_complexity_bins(
     df: pd.DataFrame,
     col: str = "human_time_mean",
     n_bins: int = 3,
-    labels: list = None,
-) -> Tuple[pd.DataFrame, dict]:
+    labels: list | None = None,
+) -> tuple[pd.DataFrame, dict]:
     """
     Assign tertile-based complexity bins within a (pre-filtered) dataframe.
     Returns (df_with_bins, cutpoints_dict).
@@ -62,27 +61,35 @@ def compute_time_savings(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_complexity_score(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Composite z-score: 0.5*human_time + 0.3*edu_years + 0.2*opus_indicator.
+    Composite z-score: 0.5*human_time + 0.3*edu_years + 0.2*autonomy.
     Uses available columns; gracefully skips missing ones.
     """
     df = df.copy()
-    weights, z_cols = [], []
+    z_cols: list[tuple[str, float]] = []
 
     if "human_time_mean" in df.columns:
-        df["z_human_time"] = stats.zscore(df["human_time_mean"].fillna(df["human_time_mean"].median()))
+        df["z_human_time"] = stats.zscore(
+            df["human_time_mean"].fillna(df["human_time_mean"].median())
+        )
         z_cols.append(("z_human_time", 0.5))
 
     if "edu_years_mean" in df.columns:
-        df["z_edu"] = stats.zscore(df["edu_years_mean"].fillna(df["edu_years_mean"].median()))
+        df["z_edu"] = stats.zscore(
+            df["edu_years_mean"].fillna(df["edu_years_mean"].median())
+        )
         z_cols.append(("z_edu", 0.3))
 
     if "autonomy_mean" in df.columns:
-        df["z_autonomy"] = stats.zscore(df["autonomy_mean"].fillna(df["autonomy_mean"].median()))
+        df["z_autonomy"] = stats.zscore(
+            df["autonomy_mean"].fillna(df["autonomy_mean"].median())
+        )
         z_cols.append(("z_autonomy", 0.2))
 
     if z_cols:
         total_w = sum(w for _, w in z_cols)
-        df["complexity_score"] = sum(df[col] * (w / total_w) for col, w in z_cols)
+        df["complexity_score"] = sum(
+            df[col] * (w / total_w) for col, w in z_cols
+        )
     else:
         df["complexity_score"] = np.nan
 
