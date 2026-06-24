@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Anthropic Economic Index reports headline productivity estimates by averaging task success rates and time savings across O\*NET task clusters. This project shows that within-primitive complexity heterogeneity is large enough to bias those estimates upward — a finding with direct implications for how AI productivity gains are measured and governed.
+The Anthropic Economic Index reports headline productivity estimates by averaging task success rates and time savings across O*NET task clusters. This project shows that within-primitive complexity heterogeneity is large enough to bias those estimates upward — a finding with direct implications for how AI productivity gains are measured and governed.
 
 **Core finding:** Treating all tasks within an economic primitive as homogeneous overestimates effective productivity uplift. Complexity-weighting the estimate — using tertile bins of mean human task duration — produces a systematically lower figure, particularly for software development tasks.
 
@@ -37,7 +37,7 @@ The Anthropic Economic Index reports headline productivity estimates by averagin
 
 ---
 
-## Setup
+## Setup / Quick Start
 
 ```bash
 git clone https://github.com/chi1233/complexity-in-economic-index
@@ -48,10 +48,13 @@ python run_analysis.py
 
 `run_analysis.py` will:
 1. Download the AEI dataset directly from Hugging Face (~90MB)
-2. Build the O\*NET task cluster panel
+2. Build the O*NET task cluster panel
 3. Assign complexity bins (tertiles of mean human task duration)
-4. Compute productivity revision statistics
+4. Compute productivity revision statistics when `success_pct` and `time_savings_ratio` are available
 5. Generate all four figures to `outputs/figures/`
+6. Save the task panel to `outputs/tables/task_panel.csv`
+
+Raw data and generated outputs are ignored by Git; they are created locally when you run the pipeline.
 
 ---
 
@@ -77,7 +80,7 @@ complexity-in-economic-index/
 ├── tests/
 │   └── test_features.py   # pytest unit tests
 └── outputs/
-    └── figures/           # generated PNGs
+    └── figures/           # generated PNGs (not tracked)
 ```
 
 ---
@@ -103,6 +106,12 @@ The **complexity-aggregation bias** = (G_naive − G_weighted) / G_naive.
 - Replicates and extends the Jan 2026 finding that success rates fall with task duration
 - Builds directly on the March 2026 Economic Primitives framework
 - Quantifies the measurement bias implied by primitive-level averaging
+
+---
+
+## Technical Note
+
+The main write-up for this project is in [`tech_note/complexity-note.md`](tech_note/complexity-note.md). It provides a 2–3 page summary of the motivation, data, methods, and implications of the within-task complexity analysis, with clear notes on which metrics are fully wired today and which are planned extensions.
 
 ---
 

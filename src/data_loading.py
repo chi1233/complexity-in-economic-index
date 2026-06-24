@@ -2,7 +2,8 @@
 data_loading.py
 --------------
 Downloads and loads the Anthropic Economic Index dataset directly
-from Hugging Face via HTTP (no datasets library required).
+from Hugging Face via HTTP (no datasets library required), and
+constructs a task-cluster-level panel used throughout the analysis.
 """
 import requests
 from pathlib import Path
@@ -61,6 +62,15 @@ def build_task_panel(df: pd.DataFrame) -> pd.DataFrame:
 
     Each unique `cluster_name` is effectively a task description; we treat
     these as our task clusters.
+
+    TODO:
+        - Extend this panel to merge additional onet_task::* facets, e.g.:
+          * onet_task::task_success          → success_pct
+          * onet_task::ai_autonomy           → autonomy_mean
+          * onet_task::human_with_ai_time    → ai_time_mean
+          * onet_task::human_education_years → edu_years_mean
+        - Use cluster_name and geo_id as join keys, keeping GLOBAL aggregates
+          for the main analysis.
     """
 
     # Filter to global onet_task human-only time means
@@ -77,7 +87,8 @@ def build_task_panel(df: pd.DataFrame) -> pd.DataFrame:
         .reset_index(name="human_time_mean")
     )
 
-    # Placeholder columns for compatibility with downstream code
+    # Placeholder columns for compatibility with downstream code. These will
+    # be populated once the corresponding facets are merged as described above.
     panel["success_pct"]    = pd.NA
     panel["autonomy_mean"]  = pd.NA
     panel["ai_time_mean"]   = pd.NA
