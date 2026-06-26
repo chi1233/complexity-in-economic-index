@@ -10,7 +10,7 @@ from pathlib import Path
 from tqdm import tqdm
 import pandas as pd
 
-# ── Direct CSV URL (release_2026_03_24, Claude.ai split) ─────────────────────
+# -- Direct CSV URL (release_2026_03_24, Claude.ai split) ---------------------
 AEI_URL = (
     "https://huggingface.co/datasets/Anthropic/EconomicIndex/resolve/main/"
     "release_2026_03_24/data/aei_raw_claude_ai_2026-02-05_to_2026-02-12.csv"
@@ -52,10 +52,10 @@ def load_raw(data_dir: str = "data") -> pd.DataFrame:
     return df
 
 
-# ── onet_task facet specification ────────────────────────────────────────────
+# -- onet_task facet specification --------------------------------------------
 # Each entry maps an output panel column to its (facet, variable) source in the
 # long-format AEI data. All are extracted at geo_id == 'GLOBAL'. `scale` is
-# applied to the raw value (e.g. percent → ratio).
+# applied to the raw value (e.g. percent -> ratio).
 #
 # Cluster names carry a trailing "::<suffix>". Most facets use "::value" (one
 # row per task). task_success instead encodes a categorical distribution with
@@ -72,13 +72,13 @@ FACET_SPECS = {
     "success_pct": {
         "facet":    "onet_task::task_success",
         "variable": "onet_task_task_success_pct",
-        "scale":    0.01,  # percent → ratio in [0, 1]
+        "scale":    0.01,  # percent -> ratio in [0, 1]
         "category": "yes", # success rate = share of "::yes" outcomes
     },
     "autonomy_mean": {
         "facet":    "onet_task::ai_autonomy",
         "variable": "onet_task_ai_autonomy_mean",
-        "scale":    1.0,   # 1–5 score
+        "scale":    1.0,   # 1-5 score
         "category": None,
     },
     "ai_time_mean": {
@@ -126,15 +126,15 @@ def build_task_panel(df: pd.DataFrame) -> pd.DataFrame:
 
     For release_2026_03_24, each metric lives in its own onet_task::* facet at
     geo_id == 'GLOBAL'. Cluster names share a common task description but carry
-    facet-specific suffixes, so we join on the suffix-stripped `task_key`. Every
+    facet-specific suffixes, so we join on the suffix-stripped task_key. Every
     unique task is treated as a cluster.
 
     Columns produced:
-        human_time_mean  hours      (onet_task::human_only_time)
-        success_pct      ratio 0–1  (onet_task::task_success "::yes" share)
-        autonomy_mean    1–5 score  (onet_task::ai_autonomy)
-        ai_time_mean     minutes    (onet_task::human_with_ai_time)
-        edu_years_mean   years      (onet_task::human_education_years)
+        human_time_mean  hours     (onet_task::human_only_time)
+        success_pct      ratio 0-1 (onet_task::task_success "::yes" share)
+        autonomy_mean    1-5 score (onet_task::ai_autonomy)
+        ai_time_mean     minutes   (onet_task::human_with_ai_time)
+        edu_years_mean   years     (onet_task::human_education_years)
     """
     # Base panel: human-only time defines the universe of task clusters.
     base_spec = FACET_SPECS["human_time_mean"]
