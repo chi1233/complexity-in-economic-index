@@ -6,13 +6,9 @@ June 2026
 
 **GitHub:** [chi1233/complexity-in-economic-index](https://github.com/chi1233/complexity-in-economic-index)
 
----
-
 ## Abstract
 
 Aggregate productivity estimates derived from AI conversation logs mask substantial heterogeneity across task difficulty. Using a panel of 3,259 tasks drawn from an Anthropic Economic Index (AEI)-style dataset, this note stratifies conversations into low, medium, and high complexity tiers using a composite scoring function over turn length, tool invocations, clarification exchanges, and multi-step dependencies. Three findings stand out. First, task success rates decline monotonically with complexity: 77.6% for low-complexity tasks, 73.3% for medium, and 68.4% for high. Second, time-savings ratios rise with complexity (84.5%, 90.9%, 94.3%), meaning the *conditional* productivity gain per completed task is largest exactly where completion is least reliable. Third, after complexity-weighting, the aggregate naive productivity gain estimate of 65.6% is revised down by approximately 0.23 percentage points to 65.4%, a modest but structurally meaningful correction. These results suggest that flat-productivity narratives built on average success rates overstate achievable gains and that complexity stratification should become a standard lens in AI labor-impact analysis.
-
----
 
 ## 1. Motivation
 
@@ -21,8 +17,6 @@ The Anthropic Economic Index and related productivity research have established 
 A critical but underexplored dimension of this analysis is *within-task complexity*. Not all tasks that appear in AI conversation logs are equally demanding: a request to "summarize this paragraph" and a request to "debug this multi-file Python pipeline with async race conditions" both register as single conversations, yet they differ enormously in cognitive load, failure risk, and the economic value destroyed when the AI underperforms. If high-complexity tasks - precisely those with the largest potential productivity payoff - fail at meaningfully higher rates, then aggregate time-savings estimates computed over all tasks implicitly overstate the effective productivity gain available to workers and firms.
 
 This note makes three contributions. It introduces a reproducible complexity-scoring pipeline applicable to AEI-structured data. It documents the empirical gradient in success rates and time-savings ratios across complexity tiers. And it derives a complexity-weighted productivity correction that provides a lower bound on the bias introduced by naive averaging.
-
----
 
 ## 2. Data and Complexity Scoring
 
@@ -41,8 +35,6 @@ where t_i is normalized turn length, k_i is normalized tool-call count, q_i is a
 This scoring approach is deliberately transparent and replicable. A key design choice is that complexity is measured from *interaction structure* - not from outcome - to avoid circularity in downstream success-rate comparisons.
 
 ![Figure 5: Distribution of task complexity scores by bin](../outputs/figures/fig5_complexity_distribution.png)
-
----
 
 ## 3. Results
 
@@ -115,8 +107,6 @@ The aggregate bias is small - 0.23% of the naive estimate - because the bins are
 
 **Table 5** shows that the bias is not uniform across task types. Software development (N=632) shows a bias of 0.063 pp (0.10% of estimate) while writing tasks (N=535) show a bias of 0.083 pp (0.13%). This heterogeneity suggests that primitive-level productivity adjustments may matter more than aggregate corrections for occupational impact assessments.
 
----
-
 ## 4. Implications
 
 ### 4.1 For Productivity Estimation
@@ -131,20 +121,14 @@ The Anthropic labor paper documents a ~14% decline in job-finding rates for work
 
 A dimension of this analysis that connects to AI safety is the incentive structure it creates for deployment decisions. Developers and deployers of AI in professional workflows face a revenue opportunity that scales with time savings (large for complex tasks) and a reliability constraint that also scales with complexity (inversely). This creates pressure to deploy AI on complex tasks despite incomplete reliability - precisely the regime where errors are most costly and least visible to downstream stakeholders. Complexity-stratified performance disclosure could function as a governance instrument: requiring AI product providers to publish success-rate distributions stratified by task complexity would make this trade-off legible to regulators, enterprises, and workers, and would create accountability incentives analogous to those that product safety regimes impose on physical goods manufacturers.
 
----
-
 ## 5. Limitations and Extensions
 
 Three limitations bound the current analysis. First, the complexity-scoring function uses a fixed weight vector estimated on a pilot sample; weights should be cross-validated against human rater judgments of task difficulty using a held-out sample. Second, success rate is a binary proxy for task quality; partial completion and output degradation are not captured, and high-complexity tasks likely exhibit greater variance in output quality conditional on nominal success. Third, the dataset, while AEI-structured, is synthetic; replication on the full AEI corpus would require access to Anthropic's proprietary conversation logs.
 
 Priority extensions include: (i) testing whether complexity gradients in success rates vary by occupation category, which would allow the labor impact estimates to be adjusted at the occupational primitive level; (ii) estimating how the complexity correction evolves over model generations (i.e., whether Claude 3 vs. Claude 4 narrows the high-complexity success gap); and (iii) linking complexity tiers to the worker survey data on displacement fear to test whether high-complexity workers - who face the largest conditional productivity gains but also the largest failure-rate penalties - exhibit systematically different adaptation strategies.
 
----
-
 ## 6. Conclusion
 
 Stratifying Anthropic Economic Index conversations by within-task complexity reveals a robust and policy-relevant gradient: success rates fall 9.2 percentage points from low to high complexity, while conditional time savings rise 9.8 points in the same direction. The opposing gradients partially cancel in aggregate productivity corrections, producing a small but directionally unambiguous downward revision of 0.15 percentage points. The correction grows as deployment concentrates on complex professional workflows, making complexity-stratified reporting a priority for both research credibility and governance design. The pipeline introduced here - composite scoring, tercile binning, weighted productivity revision - is fully reproducible from the accompanying GitHub repository and designed for direct extension to the full AEI corpus.
-
----
 
 *All code, tables, and figures are available at [github.com/chi1233/complexity-in-economic-index](https://github.com/chi1233/complexity-in-economic-index). Analysis conducted in Python 3.11 using pandas, numpy, scipy, and matplotlib. Reproducibility instructions are in the repository README.*

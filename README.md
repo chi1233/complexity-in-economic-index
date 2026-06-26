@@ -4,8 +4,6 @@
 **Chinonso Anyanwu** | Schwarzman Scholar, Tsinghua University  
 *Working paper - June 2026*
 
----
-
 ## Overview
 
 The Anthropic Economic Index reports headline productivity estimates by averaging task success rates and time savings across O*NET task clusters. This project shows that within-primitive complexity heterogeneity is large enough to bias those estimates upward - a finding with direct implications for how AI productivity gains are measured and governed.
@@ -13,8 +11,6 @@ The Anthropic Economic Index reports headline productivity estimates by averagin
 **Core finding:** Treating all tasks within an economic primitive as homogeneous overestimates effective productivity uplift. Complexity-weighting the estimate - using a composite score over turn length, tool calls, clarification exchanges, and multi-step dependencies - produces a systematically lower figure. The bias is modest on this release (0.23%) because rising time savings partially offset falling success rates as complexity increases; the correction grows nonlinearly as deployment concentrates on complex professional workflows.
 
 **Safety implication:** The same complexity gradient that drives productivity upside creates deployer pressure to release AI on tasks where reliability is lowest. Section 4.3 of the tech note argues that complexity-stratified performance disclosure is a feasible governance instrument to make this trade-off legible to regulators and workers.
-
----
 
 ## Key Results
 
@@ -42,8 +38,6 @@ Complexity-weighted vs. naive productivity uplift:
 
 *Numbers regenerate on every `python run_analysis.py`; the per-primitive breakdown is written to `outputs/tables/table5_primitive_revision.csv`.*
 
----
-
 ## Figures
 
 | Figure | Description |
@@ -59,8 +53,6 @@ Complexity-weighted vs. naive productivity uplift:
 ![Autonomy score by complexity bin](outputs/figures/fig3_autonomy_by_bin.png)
 
 ![Complexity distribution](outputs/figures/fig5_complexity_distribution.png)
-
----
 
 ## Setup / Quick Start
 
@@ -81,15 +73,11 @@ python run_analysis.py
 
 Raw data and generated outputs are ignored by Git; they are created locally when you run the pipeline.
 
----
-
 ## Data
 
 **Source:** [Anthropic Economic Index](https://huggingface.co/datasets/Anthropic/EconomicIndex), `release_2026_03_24`, Claude.ai split (Feb 5-12, 2026).  
 **License:** CC-BY 4.0 (data), MIT (code in this repo).  
 Raw data is not committed. Run `python run_analysis.py` to download.
-
----
 
 ## Repo Structure
 
@@ -110,8 +98,6 @@ complexity-in-economic-index/
     ├── figures/           # generated PNGs (not tracked)
     └── tables/            # generated CSVs (not tracked)
 ```
-
----
 
 ## Methodology
 
@@ -142,13 +128,9 @@ The **complexity-aggregation bias** = (G_naive - G_weighted) / G_naive.
 - Quantifies the measurement bias implied by primitive-level averaging
 - Section 4.3 connects the complexity-reliability trade-off to AI deployment governance
 
----
-
 ## Technical Note
 
 The full write-up is in [`tech_note/complexity-note.md`](tech_note/complexity-note.md). It covers motivation, data, methods, all results tables, and implications for productivity estimation, labor market impact, and AI safety governance.
-
----
 
 ## Tests
 
@@ -156,8 +138,6 @@ The full write-up is in [`tech_note/complexity-note.md`](tech_note/complexity-no
 pip install pytest
 pytest tests/
 ```
-
----
 
 ## Citation
 
