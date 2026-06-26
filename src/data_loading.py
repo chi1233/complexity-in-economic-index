@@ -52,47 +52,109 @@ def load_raw(data_dir: str = "data") -> pd.DataFrame:
     return df
 
 
+# ── onet_task facet specification ────────────────────────────────────────────
+# Each entry maps an output panel column to its (facet, variable) source in the
+# long-format AEI data. All are extracted at geo_id == 'GLOBAL'. `scale` is
+# applied to the raw value (e.g. percent → ratio).
+#
+# Cluster names carry a trailing "::<suffix>". Most facets use "::value" (one
+# row per task). task_success instead encodes a categorical distribution with
+# "::yes" / "::no" / "::not_classified" rows; the success rate is the "::yes"
+# percentage. We therefore join all facets on the suffix-stripped `task_key`
+# and, when `category` is set, keep only rows whose suffix matches it.
+FACET_SPECS = {
+    "human_time_mean": {
+        "facet":    "onet_task::human_only_time",
+        "variable": "onet_task_human_only_time_mean",
+        "scale":    1.0,   # hours
+        "category": None,
+    },
+    "success_pct": {
+        "facet":    "onet_task::task_success",
+        "variable": "onet_task_task_success_pct",
+        "scale":    0.01,  # percent → ratio in [0, 1]
+        "category": "yes", # success rate = share of "::yes" outcomes
+    },
+    "autonomy_mean": {
+        "facet":    "onet_task::ai_autonomy",
+        "variable": "onet_task_ai_autonomy_mean",
+        "scale":    1.0,   # 1–5 score
+        "category": None,
+    },
+    "ai_time_mean": {
+        "facet":    "onet_task::human_with_ai_time",
+        "variable": "onet_task_human_with_ai_time_mean",
+        "scale":    1.0,   # minutes
+        "category": None,
+    },
+    "edu_years_mean": {
+        "facet":    "onet_task::human_education_years",
+        "variable": "onet_task_human_education_years_mean",
+        "scale":    1.0,   # years
+        "category": None,
+    },
+}
+
+
+def _task_key(cluster_name: pd.Series) -> pd.Series:
+    """Strip the trailing '::<suffix>' so facets with different suffixes join."""
+    return cluster_name.str.rsplit("::", n=1).str[0]
+
+
+def _extract_facet(df: pd.DataFrame, facet: str, variable: str, scale: float,
+                   col: str, category: str | None = None) -> pd.DataFrame:
+    """Extract one GLOBAL onet_task facet keyed by suffix-stripped task name."""
+    mask = (
+        (df["facet"] == facet)
+        & (df["variable"] == variable)
+        & (df["geo_id"] == "GLOBAL")
+    )
+    sub = df.loc[mask].copy()
+    if category is not None:
+        sub = sub[sub["cluster_name"].str.rsplit("::", n=1).str[-1] == category]
+    sub["task_key"] = _task_key(sub["cluster_name"])
+    sub["value"] = pd.to_numeric(sub["value"], errors="coerce") * scale
+    return (
+        sub.groupby("task_key", dropna=True)["value"]
+        .mean()
+        .reset_index(name=col)
+    )
+
+
 def build_task_panel(df: pd.DataFrame) -> pd.DataFrame:
     """Construct a task-cluster-level panel from the long-format AEI data.
 
-    For release_2026_03_24, cluster-level human time is given by rows with:
-        facet    == 'onet_task::human_only_time'
-        variable == 'onet_task_human_only_time_mean'
-        geo_id   == 'GLOBAL'
+    For release_2026_03_24, each metric lives in its own onet_task::* facet at
+    geo_id == 'GLOBAL'. Cluster names share a common task description but carry
+    facet-specific suffixes, so we join on the suffix-stripped `task_key`. Every
+    unique task is treated as a cluster.
 
-    Each unique `cluster_name` is effectively a task description; we treat
-    these as our task clusters.
-
-    TODO:
-        - Extend this panel to merge additional onet_task::* facets, e.g.:
-          * onet_task::task_success          → success_pct
-          * onet_task::ai_autonomy           → autonomy_mean
-          * onet_task::human_with_ai_time    → ai_time_mean
-          * onet_task::human_education_years → edu_years_mean
-        - Use cluster_name and geo_id as join keys, keeping GLOBAL aggregates
-          for the main analysis.
+    Columns produced:
+        human_time_mean  hours      (onet_task::human_only_time)
+        success_pct      ratio 0–1  (onet_task::task_success "::yes" share)
+        autonomy_mean    1–5 score  (onet_task::ai_autonomy)
+        ai_time_mean     minutes    (onet_task::human_with_ai_time)
+        edu_years_mean   years      (onet_task::human_education_years)
     """
-
-    # Filter to global onet_task human-only time means
-    mask = (
-        (df["facet"] == "onet_task::human_only_time")
-        & (df["variable"] == "onet_task_human_only_time_mean")
-        & (df["geo_id"] == "GLOBAL")
-    )
-    sub = df[mask].copy()
-
-    panel = (
-        sub.groupby("cluster_name", dropna=True)["value"]
-        .mean()
-        .reset_index(name="human_time_mean")
+    # Base panel: human-only time defines the universe of task clusters.
+    base_spec = FACET_SPECS["human_time_mean"]
+    panel = _extract_facet(
+        df, base_spec["facet"], base_spec["variable"],
+        base_spec["scale"], "human_time_mean", base_spec["category"],
     )
 
-    # Placeholder columns for compatibility with downstream code. These will
-    # be populated once the corresponding facets are merged as described above.
-    panel["success_pct"]    = pd.NA
-    panel["autonomy_mean"]  = pd.NA
-    panel["ai_time_mean"]   = pd.NA
-    panel["edu_years_mean"] = pd.NA
+    # Merge the remaining facets onto the base by task_key.
+    for col, spec in FACET_SPECS.items():
+        if col == "human_time_mean":
+            continue
+        feat = _extract_facet(df, spec["facet"], spec["variable"],
+                              spec["scale"], col, spec["category"])
+        panel = panel.merge(feat, on="task_key", how="left")
+        n_present = panel[col].notna().sum()
+        print(f"[data_loading]   {col}: {n_present}/{len(panel)} clusters populated")
+
+    # Preserve a readable cluster_name for downstream code/plots.
+    panel = panel.rename(columns={"task_key": "cluster_name"})
 
     print(f"[data_loading] Panel built with {len(panel)} task clusters")
 

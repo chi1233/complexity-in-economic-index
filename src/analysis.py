@@ -3,8 +3,13 @@ analysis.py
 -----------
 Core analytical functions: bin summaries, productivity revision.
 """
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+
+TABLES_DIR = Path("outputs/tables")
+BIN_ORDER = ["low", "medium", "high"]
 
 
 def summarize_by_bin(
@@ -79,6 +84,128 @@ def compute_productivity_revision(
         "bias_pct":   bias_pct,
         "bin_table":  bins,
     }
+
+
+def compute_primitive_revisions(panel: pd.DataFrame) -> tuple[list, pd.DataFrame]:
+    """Productivity revision for the full panel and per-primitive subsets.
+
+    Runs compute_productivity_revision on All Tasks plus the software-dev and
+    writing/editing keyword subsets (from src.features). Returns:
+        results   list of dicts ready for plots.fig4_productivity_revision
+        table     tidy DataFrame [group, n, G_naive, G_weighted, bias, bias_pct]
+    Groups with insufficient data are skipped (and noted in the table).
+    """
+    from src.features import filter_primitive, SOFTWARE_KW, WRITING_KW  # noqa: PLC0415
+
+    def _subset(keywords):
+        mask = panel["cluster_name"].str.lower().str.contains(
+            "|".join(keywords), na=False
+        )
+        # filter_primitive asserts >= 10 rows; only call when that holds.
+        return filter_primitive(panel, keywords) if mask.sum() >= 10 else pd.DataFrame()
+
+    groups = [
+        ("All Tasks",   panel),
+        ("Software Dev", _subset(SOFTWARE_KW)),
+        ("Writing",      _subset(WRITING_KW)),
+    ]
+
+    results, records = [], []
+    for label, df_sub in groups:
+        if len(df_sub) < 10:
+            records.append({"group": label, "n": len(df_sub), "note": "insufficient data"})
+            continue
+        rev = compute_productivity_revision(df_sub)
+        if "error" in rev:
+            records.append({"group": label, "n": len(df_sub), "note": rev["error"]})
+            continue
+        results.append({
+            "label":      label,
+            "G_naive":    rev["G_naive"],
+            "G_weighted": rev["G_weighted"],
+            "bias_pct":   rev["bias_pct"],
+        })
+        records.append({
+            "group":      label,
+            "n":          len(df_sub),
+            "G_naive":    rev["G_naive"],
+            "G_weighted": rev["G_weighted"],
+            "bias":       rev["bias"],
+            "bias_pct":   rev["bias_pct"],
+        })
+    return results, pd.DataFrame(records)
+
+
+def _quantiles_by_bin(
+    df: pd.DataFrame,
+    metric: str,
+    group_col: str = "complexity_bin",
+    quantiles: tuple = (0.10, 0.25, 0.50, 0.75, 0.90),
+) -> pd.DataFrame:
+    """Per-bin quantiles of a metric. Returns tidy [bin, n, q10, q25, ...]."""
+    records = []
+    for bin_val, grp in df.groupby(group_col, observed=True):
+        vals = grp[metric].dropna() if metric in grp.columns else pd.Series(dtype=float)
+        if len(vals) < 2:
+            continue
+        row = {"bin": bin_val, "n": len(vals)}
+        for q in quantiles:
+            row[f"q{int(q * 100):02d}"] = vals.quantile(q)
+        records.append(row)
+    out = pd.DataFrame(records)
+    if not out.empty:
+        order = {b: i for i, b in enumerate(BIN_ORDER)}
+        out = out.sort_values("bin", key=lambda s: s.map(order)).reset_index(drop=True)
+    return out
+
+
+def save_tables(panel: pd.DataFrame, tables_dir: Path = TABLES_DIR) -> dict:
+    """Compute and save the analysis tables to CSV.
+
+    Returns a dict of {name: path} for the tables written.
+    """
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    written = {}
+
+    # Table 1: summary by complexity bin (mean/CI/N per metric).
+    t1 = summarize_by_bin(panel)
+    p1 = tables_dir / "table1_summary_by_bin.csv"
+    t1.to_csv(p1, index=False)
+    written["summary_by_bin"] = p1
+
+    # Table 2: productivity revision (per-bin weights + scalar estimates).
+    rev = compute_productivity_revision(panel)
+    p2 = tables_dir / "table2_productivity_revision.csv"
+    if "error" in rev:
+        pd.DataFrame([{"note": rev["error"]}]).to_csv(p2, index=False)
+    else:
+        t2 = rev["bin_table"].reset_index()
+        for k in ("G_naive", "G_weighted", "bias", "bias_pct"):
+            t2[k] = rev[k]
+        t2.to_csv(p2, index=False)
+    written["productivity_revision"] = p2
+
+    # Table 3: success-rate quantiles by bin.
+    t3 = _quantiles_by_bin(panel, "success_pct")
+    p3 = tables_dir / "table3_success_quantiles_by_bin.csv"
+    t3.to_csv(p3, index=False)
+    written["success_quantiles_by_bin"] = p3
+
+    # Table 4: autonomy quantiles by bin.
+    t4 = _quantiles_by_bin(panel, "autonomy_mean")
+    p4 = tables_dir / "table4_autonomy_quantiles_by_bin.csv"
+    t4.to_csv(p4, index=False)
+    written["autonomy_quantiles_by_bin"] = p4
+
+    # Table 5: productivity revision by primitive (all / software / writing).
+    _, t5 = compute_primitive_revisions(panel)
+    p5 = tables_dir / "table5_primitive_revision.csv"
+    t5.to_csv(p5, index=False)
+    written["primitive_revision"] = p5
+
+    for _, path in written.items():
+        print(f"[analysis]   saved {path}")
+    return written
 
 
 def run_full_summary(panel: pd.DataFrame) -> None:

@@ -15,18 +15,27 @@ This note documents a preliminary stratification of within-primitive complexity 
 ### 2.1 Data Source
 
 - **Dataset:** Anthropic Economic Index, `release_2026_03_24`, Claude.ai split (Feb 5–12, 2026).
-- **Unit of observation:** O*NET task clusters (e.g., "modify and debug software programs", "draft correspondence and reports").
-- **Key variable currently wired:**
-  - `human_time_mean` — mean estimated human hours to complete the task without AI, taken from the `onet_task::human_only_time` facet at `geo_id == 'GLOBAL'`.
+- **Unit of observation:** O*NET task clusters (e.g., "modify and debug software programs", "draft correspondence and reports"). After merging facets, the panel contains 3,259 task clusters.
+- **Variables wired into the panel** (all at `geo_id == 'GLOBAL'`):
+  - `human_time_mean` — mean estimated human hours to complete the task without AI (`onet_task::human_only_time`).
+  - `success_pct` — task success rate, taken as the share of `::yes` outcomes from the `onet_task::task_success` categorical distribution.
+  - `autonomy_mean` — mean AI autonomy score, 1–5 (`onet_task::ai_autonomy`).
+  - `ai_time_mean` — mean human-with-AI time in minutes (`onet_task::human_with_ai_time`).
+  - `edu_years_mean` — mean human education years (`onet_task::human_education_years`).
+
+The facets do not share a common cluster-name suffix: most use `::value`, but `task_success` encodes a `::yes`/`::no`/`::not_classified` distribution. The panel therefore joins all facets on the suffix-stripped task description and reads the success rate from the `::yes` rows.
 
 The current implementation constructs a task-cluster-level panel with one row per O*NET task cluster and the following columns:
 
 - `cluster_name`: O*NET task description.
 - `human_time_mean`: mean human-only task duration in hours.
+- `success_pct`: task success rate (0–1).
+- `autonomy_mean`: mean AI autonomy score (1–5).
+- `ai_time_mean`: mean human-with-AI task time (minutes).
+- `edu_years_mean`: mean human education years.
 - `complexity_bin`: categorical bin (low/medium/high) based on tertiles of `human_time_mean`.
 - `complexity_score`: a normalized z-score of `human_time_mean`.
-
-Additional columns (`success_pct`, `autonomy_mean`, `ai_time_mean`, `edu_years_mean`) are present as placeholders and will be populated by merging the corresponding `onet_task::*` facets in a future iteration.
+- `time_savings_ratio`: implied time savings, `1 - (ai_time_mean/60) / human_time_mean`, clipped to [0, 1].
 
 ### 2.2 Complexity Stratification
 
@@ -46,44 +55,50 @@ The analysis script `run_analysis.py` orchestrates the following steps:
 1. Download the AEI CSV (if needed) and cache it under `data/`.
 2. Build the task panel using `build_task_panel` in `src/data_loading.py`.
 3. Assign complexity bins and compute `complexity_score` using `src/features.py`.
-4. Compute basic bin-level summaries using `src.analysis.summarize_by_bin`.
-5. Attempt a complexity-weighted productivity calculation via `src.analysis.compute_productivity_revision`, guarded on data availability.
-6. Generate figures and save the task panel CSV under `outputs/`.
+4. Compute bin-level summaries using `src.analysis.summarize_by_bin`.
+5. Compute complexity-weighted productivity revisions for the full panel and per-primitive subsets via `src.analysis.compute_productivity_revision` and `compute_primitive_revisions`.
+6. Generate all five figures and save the task panel plus five analysis tables under `outputs/`.
 
 ---
 
-## 3. Results (Template)
+## 3. Results
 
-The current code base generates a set of figures and summary tables that are designed to align with Anthropic's published Economic Index work. As of this draft, exact numerical values depend on which facets are fully wired; this section describes the intended content of each figure.
+All five `onet_task::*` facets are wired into the panel, so the figures and the productivity revision report actual values. The headline pattern is a monotonic decline in success rate as task complexity rises.
 
 ### 3.1 Figure 1 — Success Rate by Complexity Bin
 
-Once the `success_pct` facet is merged into the task panel, Figure 1 will plot the mean task success rate in each complexity bin (low, medium, high), with 95% confidence intervals. The expected qualitative pattern, consistent with Anthropic's own reports, is that success rates decline as task complexity increases.
+Mean task success rate falls across complexity bins:
 
-In the current implementation, the plotting code is in place (`fig1_success_by_bin`), and the figure will automatically populate as soon as `success_pct` is available in the panel.
+| Complexity bin | Mean success rate (95% CI) | Mean human time (hrs) | N |
+|---|---|---|---|
+| Low | 77.6% (76.6–78.6%) | < 1.85 | 908 |
+| Medium | 73.3% (72.5–74.1%) | 1.85–3.39 | 912 |
+| High | 68.4% (67.7–69.1%) | > 3.39 | 919 |
+
+The ~9-point gap between low- and high-complexity tasks is consistent with Anthropic's own reports that success rates decline with task duration. Confidence intervals are non-overlapping, so the gradient is well-identified at this sample size.
 
 ### 3.2 Figure 2 — Success vs. Human Task Duration
 
-Figure 2 is a scatter plot of cluster-level success rates against `human_time_mean`, with points colored by complexity bin and an overlaid linear trend line. This visualization is designed to make the negative relationship between task duration and success rate visually salient and to highlight which parts of the complexity distribution contribute most to any productivity bias.
-
-As with Figure 1, the current code is ready to consume `success_pct` when it is wired in; until then, this figure should be interpreted as a placeholder for the intended analysis.
+Figure 2 is a scatter plot of cluster-level success rates against `human_time_mean`, with points colored by complexity bin and an overlaid OLS trend line. The negative slope makes the relationship between task duration and success rate visually salient and shows that the longest-duration clusters contribute most to any productivity bias.
 
 ### 3.3 Figure 3 — Autonomy by Complexity Bin
 
-Anthropic's public work reports an autonomy score capturing how independently Claude is allowed to act on a task. Figure 3 plots mean autonomy score by complexity bin, with confidence intervals and an overall reference line. Conceptually, this figure answers the question: "Do users grant Claude more autonomy on more complex tasks, or do they retain tighter control as complexity rises?"
-
-The code in `fig3_autonomy_by_bin` is structured to display this relationship once `autonomy_mean` is populated. Until then, it serves as a template.
+Mean AI autonomy score rises modestly with complexity (low 3.29 → medium 3.36 → high 3.49 on the 1–5 scale). Users grant Claude somewhat more autonomy on more complex tasks even as success rates fall — a combination worth flagging from an oversight perspective.
 
 ### 3.4 Figure 4 — Complexity-Weighted vs. Naïve Productivity Estimate
 
 The final figure compares a naïve productivity estimate with a complexity-weighted alternative:
 
 - **Naïve uplift:**
-  - \( G_{\text{naive}} = \mathbb{E}[\text{success_pct}] \times \mathbb{E}[\text{time_savings_ratio}] \).
+  - \( G_{\text{naive}} = \mathbb{E}[\text{success\_pct}] \times \mathbb{E}[\text{time\_savings\_ratio}] \).
 - **Complexity-weighted uplift:**
   - \( G_{\text{weighted}} = \sum_k w_k \cdot s_k \cdot \Delta_k \), where \(k\) indexes complexity bins, \(w_k\) is the share of tasks in bin \(k\), \(s_k\) is the bin-specific mean success rate, and \(\Delta_k\) is the bin-specific mean time-savings ratio.
 
-The figure will show side-by-side bars for \(G_{\text{naive}}\) and \(G_{\text{weighted}}\), with annotations indicating the percentage bias \((G_{\text{naive}} - G_{\text{weighted}})/G_{\text{naive}}\). At the current stage, this calculation is guarded in code and will only be reported once both `success_pct` and `time_savings_ratio` are available.
+For the full panel, \( G_{\text{naive}} = 0.656 \) and \( G_{\text{weighted}} = 0.654 \), a bias of +0.23%. The bias is small because the time-savings ratio rises with complexity (low 0.84 → high 0.94), partially offsetting the declining success rate. The keyword-defined primitive subsets show similarly modest biases — software development +0.10% (\(G_{\text{naive}}=0.652\)) and writing/editing +0.13% (\(G_{\text{naive}}=0.652\)) — and appear alongside the full-panel bars in Figure 4. The full breakdown is written to `outputs/tables/table5_primitive_revision.csv`.
+
+### 3.5 Figure 5 — Task Duration Distribution by Complexity Bin
+
+Figure 5 is a violin plot of `human_time_mean` within each complexity bin, illustrating how the tertile cutpoints (≈1.85 hrs and ≈3.39 hrs) partition the duration distribution and how much within-bin spread remains — context for interpreting the bin-level means above.
 
 ---
 
@@ -99,17 +114,16 @@ From a policy and AI safety perspective, this matters because high-complexity ta
 
 ## 5. Limitations and Next Steps
 
-This note represents an early, pipeline-focused iteration of the within-task complexity analysis. Several limitations are important to highlight:
+This note represents an early iteration of the within-task complexity analysis. Several limitations are important to highlight:
 
-1. **Partial facet wiring:**
-   - At present, only `human_time_mean` is fully wired into the task panel. Columns for `success_pct`, `autonomy_mean`, `ai_time_mean`, and `edu_years_mean` are placeholders and will be populated by merging the corresponding `onet_task::*` facets in future commits.
-   - As a result, the figures and productivity revision calculations should be treated as structural templates rather than final numerical results.
+1. **Success metric construction:**
+   - `success_pct` is derived as the share of `::yes` outcomes in the `onet_task::task_success` distribution. Tasks with no `::yes` rows are left missing (2,739 of 3,259 clusters carry a success value), so success-based figures and the productivity revision are computed on the populated subset.
 
 2. **Single time window:**
    - The analysis uses a single AEI release window (Feb 5–12, 2026). Extending the panel to multiple weeks or months would allow for more robust estimates and the study of temporal dynamics (e.g., learning curves, seasonality in task mix).
 
-3. **Primitive-specific analysis deferred:**
-   - The current pipeline focuses on the full task panel. Splitting the analysis by primitive (e.g., software development vs. writing and editing) is planned once success and autonomy metrics are wired, so that per-primitive complexity gradients can be estimated with sufficient power.
+3. **Keyword-based primitive splits:**
+   - Software-development and writing/editing subsets are defined by simple keyword matching on the task description (`SOFTWARE_KW` / `WRITING_KW` in `src/features.py`). This is a coarse proxy for true economic primitives and may over- or under-include tasks; a mapping to O*NET occupation groups would be more principled.
 
 4. **No causal claims:**
    - The analysis is descriptive and does not attempt to make causal claims about the impact of AI on productivity. It is intended as a measurement and decomposition exercise that can feed into more structured causal work.
@@ -118,17 +132,11 @@ This note represents an early, pipeline-focused iteration of the within-task com
 
 The repository is structured to make the following extensions straightforward:
 
-- **Facet wiring:**
-  - Extend `build_task_panel` in `src/data_loading.py` to merge:
-    - `onet_task::task_success` → `success_pct`.
-    - `onet_task::ai_autonomy` → `autonomy_mean`.
-    - `onet_task::human_with_ai_time` → `ai_time_mean`.
-    - `onet_task::human_education_years` → `edu_years_mean`.
+- **Additional facets:**
+  - The panel can be extended with further `onet_task::*` facets already present in the data, e.g. `onet_task::ai_education_years`, `onet_task::collaboration`, and `onet_task::multitasking`.
 
-- **Primitive splits:**
-  - Re-enable primitive-specific subsets for software development and writing/editing once success and time-savings metrics are present, and update the tech note with per-primitive tables and discussion.
+- **Principled primitive mapping:**
+  - Replace keyword-based subsets with a mapping from task clusters to O*NET occupation groups, enabling per-primitive complexity gradients with cleaner membership.
 
 - **Richer models:**
   - Use `complexity_score` in regressions of success and time savings on complexity, allowing interactions with user tenure or geography, building on Anthropic's existing learning-curve and geography analyses.
-
-As those extensions are implemented, this note can be updated by replacing placeholder text with actual results and by expanding the Results section to include tables and per-primitive figures.

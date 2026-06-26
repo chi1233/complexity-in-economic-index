@@ -10,19 +10,29 @@
 
 The Anthropic Economic Index reports headline productivity estimates by averaging task success rates and time savings across O*NET task clusters. This project shows that within-primitive complexity heterogeneity is large enough to bias those estimates upward — a finding with direct implications for how AI productivity gains are measured and governed.
 
-**Core finding:** Treating all tasks within an economic primitive as homogeneous overestimates effective productivity uplift. Complexity-weighting the estimate — using tertile bins of mean human task duration — produces a systematically lower figure, particularly for software development tasks.
+**Core finding:** Treating all tasks within an economic primitive as homogeneous overestimates effective productivity uplift. Complexity-weighting the estimate — using tertile bins of mean human task duration — produces a systematically lower figure. The bias is modest on this release because rising time savings partially offset falling success rates as complexity increases.
 
 ---
 
 ## Key Results
 
+Success rate falls monotonically with task complexity across all 3,259 O*NET task clusters (Claude.ai split, Feb 5–12 2026):
+
+| Complexity bin | Mean success rate | Mean human time (hrs) | N |
+|---|---|---|---|
+| Low | 77.6% | < 1.85 | 908 |
+| Medium | 73.3% | 1.85–3.39 | 912 |
+| High | 68.4% | > 3.39 | 919 |
+
+Complexity-weighted vs. naïve productivity uplift:
+
 | Group | G_naive | G_weighted | Bias |
 |---|---|---|---|
-| All tasks | see outputs | see outputs | computed on run |
-| Software Development | see outputs | see outputs | computed on run |
-| Writing & Editing | see outputs | see outputs | computed on run |
+| All tasks | 0.656 | 0.654 | +0.23% |
+| Software Development | 0.652 | 0.651 | +0.10% |
+| Writing & Editing | 0.652 | 0.651 | +0.13% |
 
-*Run `python run_analysis.py` to populate with real values.*
+*Numbers regenerate on every `python run_analysis.py`; the per-primitive breakdown is written to `outputs/tables/table5_primitive_revision.csv`.*
 
 ---
 
@@ -33,7 +43,8 @@ The Anthropic Economic Index reports headline productivity estimates by averagin
 | `fig1_success_by_bin.png` | Success rate by complexity bin (all tasks) |
 | `fig2_success_vs_time.png` | Cluster-level success rate vs. human task duration |
 | `fig3_autonomy_by_bin.png` | AI autonomy score by complexity bin |
-| `fig4_productivity_revision.png` | Naïve vs. complexity-weighted productivity estimate |
+| `fig4_productivity_revision.png` | Naïve vs. complexity-weighted uplift (all / software / writing) |
+| `fig5_complexity_distribution.png` | Distribution of human task duration within each complexity bin |
 
 ---
 
@@ -48,11 +59,11 @@ python run_analysis.py
 
 `run_analysis.py` will:
 1. Download the AEI dataset directly from Hugging Face (~90MB)
-2. Build the O*NET task cluster panel
+2. Build the O*NET task cluster panel, merging five `onet_task::*` facets (human time, success, autonomy, human-with-AI time, education years)
 3. Assign complexity bins (tertiles of mean human task duration)
-4. Compute productivity revision statistics when `success_pct` and `time_savings_ratio` are available
-5. Generate all four figures to `outputs/figures/`
-6. Save the task panel to `outputs/tables/task_panel.csv`
+4. Compute productivity revision statistics for all tasks and per-primitive subsets
+5. Generate all five figures to `outputs/figures/`
+6. Save the task panel and five analysis tables to `outputs/tables/`
 
 Raw data and generated outputs are ignored by Git; they are created locally when you run the pipeline.
 
@@ -73,14 +84,15 @@ complexity-in-economic-index/
 ├── run_analysis.py        # end-to-end pipeline
 ├── requirements.txt
 ├── src/
-│   ├── data_loading.py    # HF download + panel construction
+│   ├── data_loading.py    # HF download + 5-facet panel construction
 │   ├── features.py        # complexity bins, time savings, composite score
-│   ├── analysis.py        # bin summaries, productivity revision
-│   └── plots.py           # figures 1–4
+│   ├── analysis.py        # bin summaries, productivity revision, table writers
+│   └── plots.py           # figures 1–5
 ├── tests/
 │   └── test_features.py   # pytest unit tests
 └── outputs/
-    └── figures/           # generated PNGs (not tracked)
+    ├── figures/           # generated PNGs (not tracked)
+    └── tables/            # generated CSVs (not tracked)
 ```
 
 ---

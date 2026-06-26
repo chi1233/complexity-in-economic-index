@@ -12,7 +12,13 @@ Output:
     outputs/figures/fig2_success_vs_time.png
     outputs/figures/fig3_autonomy_by_bin.png
     outputs/figures/fig4_productivity_revision.png
+    outputs/figures/fig5_complexity_distribution.png
     outputs/tables/task_panel.csv
+    outputs/tables/table1_summary_by_bin.csv
+    outputs/tables/table2_productivity_revision.csv
+    outputs/tables/table3_success_quantiles_by_bin.csv
+    outputs/tables/table4_autonomy_quantiles_by_bin.csv
+    outputs/tables/table5_primitive_revision.csv
 """
 from pathlib import Path
 
@@ -23,11 +29,12 @@ from src.features    import (
 )
 from src.analysis    import (
     summarize_by_bin, compute_productivity_revision,
-    run_full_summary,
+    compute_primitive_revisions, run_full_summary, save_tables,
 )
 from src.plots       import (
     fig1_success_by_bin, fig2_success_vs_time,
     fig3_autonomy_by_bin, fig4_productivity_revision,
+    fig5_complexity_distribution,
 )
 
 
@@ -64,26 +71,31 @@ def main() -> None:
             f"bias={rev_all['bias_pct']:.2f}%"
         )
 
+    # Per-primitive revisions (all / software dev / writing) for fig4.
+    prim_results, prim_table = compute_primitive_revisions(panel)
+    for r in prim_results:
+        print(
+            f"      {r['label']}: G_naive={r['G_naive']:.4f}  "
+            f"G_weighted={r['G_weighted']:.4f}  bias={r['bias_pct']:.2f}%"
+        )
+
     # ── 4. Figures ───────────────────────────────────────────────────────────
     print("\n[4/5] Generating figures...")
     fig1_success_by_bin(summary_all)
     fig2_success_vs_time(panel)
     fig3_autonomy_by_bin(summary_all)
+    fig5_complexity_distribution(panel)
 
-    if "error" not in rev_all:
-        fig4_productivity_revision([
-            {
-                "label": "All Tasks",
-                **{k: rev_all[k] for k in ["G_naive", "G_weighted", "bias_pct"]},
-            }
-        ])
+    if prim_results:
+        fig4_productivity_revision(prim_results)
     print("      Figures saved to outputs/figures/")
 
-    # ── 5. Save panel CSV ────────────────────────────────────────────────────
-    print("\n[5/5] Saving panel CSV...")
+    # ── 5. Save tables ───────────────────────────────────────────────────────
+    print("\n[5/5] Saving tables...")
     Path("outputs/tables").mkdir(parents=True, exist_ok=True)
     panel.to_csv("outputs/tables/task_panel.csv", index=False)
     print("      Saved outputs/tables/task_panel.csv")
+    save_tables(panel)
     print("\nDone.")
 
 
