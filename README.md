@@ -20,6 +20,8 @@ The Anthropic Economic Index reports headline productivity estimates by averagin
 
 Success rate falls monotonically with task complexity across all 3,259 O*NET task clusters (Claude.ai split, Feb 5-12 2026):
 
+![Success rate by complexity bin](outputs/figures/fig1_success_by_bin.png)
+
 | Complexity bin | Mean success rate | 95% CI | N |
 |---|---|---|---|
 | Low | 77.6% | [76.6%, 78.6%] | 908 |
@@ -27,6 +29,8 @@ Success rate falls monotonically with task complexity across all 3,259 O*NET tas
 | High | 68.4% | [67.7%, 69.1%] | 919 |
 
 Conditional time-savings ratios run in the opposite direction (84.5% / 90.9% / 94.3%), creating the opposing-gradient structure that bounds the aggregate correction.
+
+![Naive vs complexity-weighted productivity uplift](outputs/figures/fig4_productivity_revision.png)
 
 Complexity-weighted vs. naive productivity uplift:
 
@@ -49,6 +53,12 @@ Complexity-weighted vs. naive productivity uplift:
 | `fig3_autonomy_by_bin.png` | AI autonomy score by complexity bin |
 | `fig4_productivity_revision.png` | Naive vs. complexity-weighted uplift (all / software / writing) |
 | `fig5_complexity_distribution.png` | Distribution of human task duration within each complexity bin |
+
+![Success rate vs human task duration](outputs/figures/fig2_success_vs_time.png)
+
+![Autonomy score by complexity bin](outputs/figures/fig3_autonomy_by_bin.png)
+
+![Complexity distribution](outputs/figures/fig5_complexity_distribution.png)
 
 ---
 

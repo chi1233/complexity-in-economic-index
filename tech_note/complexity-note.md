@@ -40,6 +40,8 @@ where t_i is normalized turn length, k_i is normalized tool-call count, q_i is a
 
 This scoring approach is deliberately transparent and replicable. A key design choice is that complexity is measured from *interaction structure* - not from outcome - to avoid circularity in downstream success-rate comparisons.
 
+![Figure 5: Distribution of task complexity scores by bin](../outputs/figures/fig5_complexity_distribution.png)
+
 ---
 
 ## 3. Results
@@ -48,6 +50,8 @@ This scoring approach is deliberately transparent and replicable. A key design c
 
 **Table 1** reports mean success rates with 95% bootstrap confidence intervals by complexity bin.
 
+![Figure 1: Success rate by complexity bin](../outputs/figures/fig1_success_by_bin.png)
+
 | Complexity Bin | N | Mean Success Rate | 95% CI |
 |---|---|---|---|
 | Low | 908 | **77.6%** | [76.6%, 78.6%] |
@@ -55,6 +59,8 @@ This scoring approach is deliberately transparent and replicable. A key design c
 | High | 919 | **68.4%** | [67.7%, 69.1%] |
 
 The 9.2 percentage-point gap between low and high complexity is statistically robust across all quantiles of the within-bin distribution (Table 3). At the median, low-complexity tasks succeed 81.1% of the time versus 68.8% for high-complexity tasks - a gap that persists at the 10th percentile (58.1% vs. 54.8%) and widens at the 90th (94.1% vs. 81.7%). The monotonic decline confirms that complexity scoring captures a real gradient in task-completion reliability, not merely noise.
+
+![Figure 2: Cluster-level success rate vs. human task duration](../outputs/figures/fig2_success_vs_time.png)
 
 ### 3.2 Time-Savings Ratios Rise with Complexity
 
@@ -71,6 +77,8 @@ This pattern reflects a compositional effect: high-complexity tasks are drawn di
 ### 3.3 Autonomy Rises with Complexity
 
 A secondary finding with implications for labor displacement is that autonomy scores are higher for high-complexity tasks, not lower:
+
+![Figure 3: AI autonomy score by complexity bin](../outputs/figures/fig3_autonomy_by_bin.png)
 
 | Complexity Bin | Median Autonomy Score | IQR |
 |---|---|---|
@@ -91,6 +99,8 @@ where s is average success rate and delta is average time-savings conditional on
     G_weighted = sum_b [ w_b * s_b * delta_b ]
 
 where b indexes complexity bins, w_b is the share of tasks in bin b, s_b is the mean success rate, and delta_b is the mean time-savings ratio.
+
+![Figure 4: Naive vs. complexity-weighted productivity uplift](../outputs/figures/fig4_productivity_revision.png)
 
 **Table 2** reports the correction:
 
